@@ -1,8 +1,16 @@
-FROM alpine:3.6
+FROM golang:1.10 AS builder
 
-ADD bin/auditlog ./main.exe
-EXPOSE 50001
-#https://stackoverflow.com/questions/36279253/go-compiled-binary-wont-run-in-an-alpine-docker-container-on-ubuntu-host
-RUN mkdir /lib64 && ln -s /lib/libc.musl-x86_64.so.1 /lib64/ld-linux-x86-64.so.2
+# Download and install the latest release of dep
+ADD https://github.com/golang/dep/releases/download/v0.4.1/dep-linux-amd64 /usr/bin/dep
+RUN chmod +x /usr/bin/dep
 
-CMD ./auditlog
+# Copy the code from the host and compile it
+WORKDIR $GOPATH/src/auditlog
+COPY Gopkg.toml Gopkg.lock ./
+RUN dep ensure --vendor-only
+COPY . ./
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix nocgo -o /app .
+
+FROM scratch
+COPY --from=builder /app ./
+ENTRYPOINT ["./app"]
